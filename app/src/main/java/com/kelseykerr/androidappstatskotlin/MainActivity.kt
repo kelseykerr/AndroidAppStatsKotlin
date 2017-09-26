@@ -32,33 +32,36 @@ class MainActivity : AppCompatActivity() {
         appItemAdapter = AppItemAdapter(this, R.layout.app_item, appItems)
         appListVar.adapter = appItemAdapter
         appListVar.setOnItemClickListener(AdapterView.OnItemClickListener { parent, view, position, id ->
-            val appItem = appItems.get(position)
-            val appStats = getBatteryStats(appItem.packageName)
-            val newFragment = AppStatsFragment.newInstance(appStats)
-            newFragment.show(fragmentManager, "dialog")
+            //val appItem = appItems.get(position)
+            //val appStats = getBatteryStats(appItem.packageName)
+            //val newFragment = AppStatsFragment.newInstance(appStats)
+            //newFragment.show(fragmentManager, "dialog")
         })
         appList = appListVar
 
     }
 
     private fun instantiateAppStatsMap() {
-        appStatsMap = HashMap<String, AppStats>()
+        var appStatsMapVar = HashMap<String, AppStats>()
         appItems = ArrayList()
         try {
             val process = Runtime.getRuntime().exec("pm list packages")
             val bufferedReader = BufferedReader(
                     InputStreamReader(process.inputStream))
             var line: String
-            while ((line = bufferedReader.readLine()) != null) {
+            line = bufferedReader.readLine()
+            while (line != null && !line.isBlank() && !line.isEmpty()) {
                 val packageName = line.replace("package:", "")
                 val appIcon = packageManager.getApplicationIcon(packageName)
                 val ai = packageManager.getApplicationInfo(packageName, 0)
-                val appName = if (ai != null) packageManager.getApplicationLabel(ai) as String else null
+                val appName = if (ai != null) packageManager.getApplicationLabel(ai) as String else ""
                 appItems.add(AppItem(appName, packageName, appIcon))
-                appStatsMap.put(packageName, AppStats())
+                appStatsMapVar.put(packageName, AppStats(0, 0))
                 Log.d(TAG, "added package [$packageName]")
+                line = bufferedReader.readLine()
             }
             Collections.sort(appItems)
+            appStatsMap = appStatsMapVar
         } catch (e: IOException) {
             Log.e(TAG, "Couldn't list packages, got error: " + e.message)
         } catch (e: PackageManager.NameNotFoundException) {
@@ -69,14 +72,13 @@ class MainActivity : AppCompatActivity() {
 
     fun getBatteryStats(packageName: String): AppStats? {
         try {
-            val appStats = AppStats()
             val process = Runtime.getRuntime().exec("dumpsys batterystats $packageName -c")
             val bufferedReader = BufferedReader(
                     InputStreamReader(process.inputStream))
             var line: String? = bufferedReader.readLine()
             var uid = ""
-            var partialWakeLockCount: Int? = 0
-            var fullWakeLockCount: Int? = 0
+            var partialWakeLockCount = 0
+            var fullWakeLockCount = 0
             while (line != null) {
                 val lineData = line.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
                 val id = lineData[3]
@@ -102,9 +104,7 @@ class MainActivity : AppCompatActivity() {
             }
             Log.d(TAG, "Full wake lock count is [$fullWakeLockCount]")
             Log.d(TAG, "Partial wake lock count is [$partialWakeLockCount]")
-            appStats.setFullWakeLocks(fullWakeLockCount)
-            appStats.setPartialWakeLocks(partialWakeLockCount)
-            return appStats
+            return AppStats(partialWakeLockCount, fullWakeLockCount)
         } catch (e: IOException) {
             Log.e(TAG, "Couldn't get battery stats, got error: " + e.message)
             return null
